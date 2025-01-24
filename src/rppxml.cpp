@@ -122,13 +122,15 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
     std::string line = "<" + obj.name;
     for (const py::object &param : obj.params) {
         std::string str = py::str(param);
-        // add quotes if string contains spaces or special characters
-        bool needs_quotes = false;
-        for (char c : str) {
-            if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
-                c == '\\' || c == '/' || !isprint(c)) {
-                needs_quotes = true;
-                break;
+        // add quotes if string contains spaces, special characters, or is empty
+        bool needs_quotes = str.empty();  // empty string needs quotes
+        if (!needs_quotes) {
+            for (char c : str) {
+                if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
+                    c == '\\' || c == '/' || !isprint(c)) {
+                    needs_quotes = true;
+                    break;
+                }
             }
         }
         if (needs_quotes) {
@@ -144,18 +146,20 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
             // try to cast to RPPXML
             RPPXML block = child.cast<RPPXML>();
             write_context(block, ctx);
-        } catch (const py::cast_error &) {
+        } catch (const py::cast_error&) {
             // not a block, must be a parameter list
             std::vector<py::object> params = child.cast<std::vector<py::object>>();
             std::string line;
             for (const py::object &param : params) {
                 std::string str = py::str(param);
-                bool needs_quotes = false;
-                for (char c : str) {
-                    if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
-                        c == '\\' || c == '/' || !isprint(c)) {
-                        needs_quotes = true;
-                        break;
+                bool needs_quotes = str.empty();  // empty string needs quotes
+                if (!needs_quotes) {
+                    for (char c : str) {
+                        if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
+                            c == '\\' || c == '/' || !isprint(c)) {
+                            needs_quotes = true;
+                            break;
+                        }
                     }
                 }
                 if (needs_quotes) {
