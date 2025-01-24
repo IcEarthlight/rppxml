@@ -258,6 +258,95 @@ PYBIND11_MODULE(rppxml, m)
                << "params=" << py::str(py::cast(self.params)) << ", "
                << "children=" << py::str(py::cast(self.children)) << ")";
             return ss.str();
+        })
+        .def("__eq__", [](const RPPXML &self, py::object other) {
+            try {
+                // Try to cast other to RPPXML
+                if (!py::isinstance<RPPXML>(other)) {
+                    py::print("Not a RPPXML instance");
+                    return false;
+                }
+                
+                // Get the RPPXML reference
+                const RPPXML& rhs = other.cast<const RPPXML&>();
+                
+                // Compare name directly (string comparison works fine)
+                if (self.name != rhs.name) {
+                    return false;
+                }
+                
+                // Compare params using Python's comparison
+                py::object self_params = py::cast(self.params);
+                py::object rhs_params = py::cast(rhs.params);
+                if (!self_params.equal(rhs_params)) {
+                    return false;
+                }
+                
+                // Compare children using Python's comparison
+                py::object self_children = py::cast(self.children);
+                py::object rhs_children = py::cast(rhs.children);
+                if (!self_children.equal(rhs_children)) {
+                    return false;
+                }
+                
+                return true;
+            } catch (const py::error_already_set&) {
+                py::print("Python error during comparison");
+                return false;
+            } catch (const std::exception& e) {
+                py::print("C++ error during comparison:", e.what());
+                return false;
+            }
+        })
+        .def("equals", [](const RPPXML &self, py::object other) -> bool {
+            try {
+                // Try to cast other to RPPXML
+                if (!py::isinstance<RPPXML>(other)) {
+                    return false;
+                }
+                
+                // Get the RPPXML reference
+                const RPPXML& rhs = other.cast<const RPPXML&>();
+                
+                // Compare name directly
+                if (self.name != rhs.name) {
+                    return false;
+                }
+                
+                // Compare params using Python's comparison
+                py::object self_params = py::cast(self.params);
+                py::object rhs_params = py::cast(rhs.params);
+                if (!self_params.equal(rhs_params)) {
+                    return false;
+                }
+                
+                // Compare children using Python's comparison
+                py::object self_children = py::cast(self.children);
+                py::object rhs_children = py::cast(rhs.children);
+                if (!self_children.equal(rhs_children)) {
+                    return false;
+                }
+                
+                return true;
+            } catch (const py::error_already_set&) {
+                return false;
+            } catch (const std::exception&) {
+                return false;
+            }
+        })
+        .def("__copy__", [](const RPPXML &self) {
+            RPPXML copy;
+            copy.name = self.name;
+            copy.params = self.params;
+            copy.children = self.children;
+            return copy;
+        })
+        .def("__deepcopy__", [](const RPPXML &self, py::dict) {
+            RPPXML copy;
+            copy.name = self.name;
+            copy.params = py::cast<std::vector<py::object>>(py::module::import("copy").attr("deepcopy")(self.params));
+            copy.children = py::cast<std::vector<py::object>>(py::module::import("copy").attr("deepcopy")(self.children));
+            return copy;
         });
     
     m.def("loads", &loads, "Parse RPP from string",

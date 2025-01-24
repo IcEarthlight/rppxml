@@ -54,10 +54,18 @@ def test_basic_parsing():
 
 def test_roundtrip():
     # test that dumps(loads(x)) preserves structure
-    original = """<OBJECT 0.1 "str with spaces" 256
-  PARAM1 "" 1 2
-  PARAM2 "a" analyze
->"""
+    original: str = textwrap.dedent("""\
+    <OBJECT 0.1 "str with spaces" 256
+      PARAM1 "" 1 2
+      PARAM2 "a" analyze
+      <SUBOBJECT my/dir ""
+        something
+        1 2 3 0 0 0 - - -
+      >
+      <NOTES 0 2
+      >
+    >""")
+
     obj = rppxml.loads(original)
     dumped: str = rppxml.dumps(obj)
     reloaded = rppxml.loads(dumped)
@@ -76,7 +84,7 @@ def test_error_handling():
 
 def test_special_characters():
     # test handling of special characters and whitespace
-    xml = """<OBJ 0\t1        "a b c" \n2\n>"""
+    xml: str = """\t<OBJ 0\t1        "a b c" \n2\n>"""
     obj = rppxml.loads(xml)
     
     assert obj.name == "OBJ"
