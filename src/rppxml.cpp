@@ -11,10 +11,10 @@ namespace rppxml {
 namespace {
 
 // parse a line into tokens
-std::vector<py::object> parse_line(const char* line)
+std::vector<py::object> parse_line(const char *line)
 {
     std::vector<py::object> tokens;
-    const char* p = line;
+    const char *p = line;
     std::string token;
     
     while (*p) {
@@ -66,7 +66,7 @@ std::vector<py::object> parse_line(const char* line)
 }
 
 // convert ProjectStateContext to RPPXML
-py::object parse_context(ProjectStateContext* ctx)
+py::object parse_context(ProjectStateContext *ctx)
 {
     char line[4096];
     std::vector<std::unique_ptr<RPPXML>> stack;
@@ -116,11 +116,11 @@ py::object parse_context(ProjectStateContext* ctx)
 }
 
 // convert RPPXML to ProjectStateContext
-void write_context(const RPPXML& obj, ProjectStateContext* ctx)
+void write_context(const RPPXML &obj, ProjectStateContext *ctx)
 {
     // write block header with name and params
     std::string line = "<" + obj.name;
-    for (const auto& param : obj.params) {
+    for (const py::object &param : obj.params) {
         std::string str = py::str(param);
         // add quotes if string contains spaces or special characters
         bool needs_quotes = false;
@@ -139,16 +139,16 @@ void write_context(const RPPXML& obj, ProjectStateContext* ctx)
     ctx->AddLine("%s", line.c_str());
     
     // write children
-    for (const auto& child : obj.children) {
+    for (const py::object &child : obj.children) {
         try {
             // try to cast to RPPXML
-            auto block = child.cast<RPPXML>();
+            RPPXML block = child.cast<RPPXML>();
             write_context(block, ctx);
-        } catch (const py::cast_error&) {
+        } catch (const py::cast_error &) {
             // not a block, must be a parameter list
             std::vector<py::object> params = child.cast<std::vector<py::object>>();
             std::string line;
-            for (const auto& param : params) {
+            for (const py::object &param : params) {
                 std::string str = py::str(param);
                 bool needs_quotes = false;
                 for (char c : str) {
@@ -174,7 +174,7 @@ void write_context(const RPPXML& obj, ProjectStateContext* ctx)
 
 } // anonymous namespace
 
-py::object loads(const std::string& rpp_str)
+py::object loads(const std::string &rpp_str)
 {
     // check if input looks like RPP content
     if (rpp_str.empty() || rpp_str[0] != '<') {
@@ -182,7 +182,7 @@ py::object loads(const std::string& rpp_str)
     }
 
     WDL_HeapBuf hb;
-    void* buf = hb.Resize((int)rpp_str.size() + 1);  // +1 for null terminator
+    void *buf = hb.Resize((int)rpp_str.size() + 1);  // +1 for null terminator
     if (buf) {
         memcpy(buf, rpp_str.c_str(), rpp_str.size() + 1);  // copy including null terminator
     }
@@ -195,7 +195,7 @@ py::object loads(const std::string& rpp_str)
     return parse_context(ctx.get());
 }
 
-py::object load(const std::string& filename)
+py::object load(const std::string &filename)
 {
     if (filename.empty()) {
         throw std::runtime_error("Filename cannot be empty");
@@ -209,7 +209,7 @@ py::object load(const std::string& filename)
     return parse_context(ctx.get());
 }
 
-std::string dumps(const py::object& obj)
+std::string dumps(const py::object &obj)
 {
     WDL_HeapBuf hb;
     std::unique_ptr<ProjectStateContext> ctx(ProjectCreateMemCtx_Write(&hb));
@@ -220,7 +220,7 @@ std::string dumps(const py::object& obj)
     write_context(obj.cast<RPPXML>(), ctx.get());
     delete ctx.release();  // flush the context
     
-    const char* data = (const char*)hb.Get();
+    const char *data = (const char *)hb.Get();
     size_t len = hb.GetSize();
     // find actual string length (stop at first null)
     while (len > 0 && data[len-1] == '\0') len--;
@@ -228,7 +228,7 @@ std::string dumps(const py::object& obj)
     return std::string(data, len);
 }
 
-void dump(const py::object& obj, const std::string& filename)
+void dump(const py::object &obj, const std::string &filename)
 {
     std::unique_ptr<ProjectStateContext> ctx(ProjectCreateFileWrite(filename.c_str()));
     if (!ctx) {
@@ -244,11 +244,11 @@ PYBIND11_MODULE(rppxml, m)
     
     py::class_<RPPXML>(m, "RPPXML")
         .def(py::init<>())
-        .def(py::init<const std::string&>())
+        .def(py::init<const std::string &>())
         .def_readwrite("name", &RPPXML::name)
         .def_readwrite("params", &RPPXML::params)
         .def_readwrite("children", &RPPXML::children)
-        .def("__repr__", [](const RPPXML& self) {
+        .def("__repr__", [](const RPPXML &self) {
             std::ostringstream ss;
             ss << "RPPXML(name='" << self.name << "', "
                << "params=" << py::str(py::cast(self.params)) << ", "

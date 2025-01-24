@@ -1,6 +1,28 @@
+# Build directories
+build/
+Debug/
+Release/
+third_party/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.env
+
+# VSCode
 .vscode/*
-**/.DS_Store
-/*build*
-/.idea
-/.vs
-/third_party
+!.vscode/project-settings.json
+
+# IDE
+.vs/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
