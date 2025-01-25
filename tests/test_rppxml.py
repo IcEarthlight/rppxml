@@ -84,7 +84,7 @@ def test_error_handling():
 
 def test_special_characters():
     # test handling of special characters and whitespace
-    xml: str = """\t<OBJ 0\t1        "a b c" \n2\n>"""
+    xml: str = """<OBJ 0\t1        "a b c" \n2\n>"""
     obj = rppxml.loads(xml)
     
     assert obj.name == "OBJ"

@@ -115,28 +115,50 @@ py::object parse_context(ProjectStateContext *ctx)
     return py::cast(result);
 }
 
+// helper function to check if a string needs quotes to avoid ambiguity
+bool needs_quotes(const std::string &str)
+{
+    if (str.empty()) return true; // empty strings ("") needs quotes
+
+    try {
+        size_t pos = 0;
+        std::stod(str, &pos);
+        if (pos == str.size()) // ensure the whole string is parsed ("123abc")
+            return true; // an integer/float number needs quotes
+
+    } catch (...) { }
+
+    for (char c : str)
+        if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
+            c == '\\' || c == '/' || !isprint(c))
+            return true;
+    
+    return false;
+}
+
+// helper function to convert py::object to valid non-ambiguous string
+std::string stringify_pyobj(const py::object &obj)
+{
+    if (py::isinstance<py::str>(obj)) {
+        std::string str = py::str(obj);
+        // add quotes if string is ambiguous
+        if (needs_quotes(str)) {
+            str = "\"" + str + "\"";
+        }
+        return str;
+    }
+
+    return py::str(obj);
+}
+
 // convert RPPXML to ProjectStateContext
 void write_context(const RPPXML &obj, ProjectStateContext *ctx)
 {
     // write block header with name and params
     std::string line = "<" + obj.name;
     for (const py::object &param : obj.params) {
-        std::string str = py::str(param);
-        // add quotes if string contains spaces, special characters, or is empty
-        bool needs_quotes = str.empty();  // empty string needs quotes
-        if (!needs_quotes) {
-            for (char c : str) {
-                if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
-                    c == '\\' || c == '/' || !isprint(c)) {
-                    needs_quotes = true;
-                    break;
-                }
-            }
-        }
-        if (needs_quotes) {
-            str = "\"" + str + "\"";
-        }
-        line += " " + str;
+        line += " ";
+        line += stringify_pyobj(param);
     }
     ctx->AddLine("%s", line.c_str());
     
@@ -151,22 +173,8 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
             std::vector<py::object> params = child.cast<std::vector<py::object>>();
             std::string line;
             for (const py::object &param : params) {
-                std::string str = py::str(param);
-                bool needs_quotes = str.empty();  // empty string needs quotes
-                if (!needs_quotes) {
-                    for (char c : str) {
-                        if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
-                            c == '\\' || c == '/' || !isprint(c)) {
-                            needs_quotes = true;
-                            break;
-                        }
-                    }
-                }
-                if (needs_quotes) {
-                    str = "\"" + str + "\"";
-                }
                 if (!line.empty()) line += " ";
-                line += str;
+                line += stringify_pyobj(param);
             }
             ctx->AddLine("%s", line.c_str());
         }
@@ -295,42 +303,6 @@ PYBIND11_MODULE(rppxml, m)
                 return false;
             } catch (const std::exception& e) {
                 py::print("C++ error during comparison:", e.what());
-                return false;
-            }
-        })
-        .def("equals", [](const RPPXML &self, py::object other) -> bool {
-            try {
-                // Try to cast other to RPPXML
-                if (!py::isinstance<RPPXML>(other)) {
-                    return false;
-                }
-                
-                // Get the RPPXML reference
-                const RPPXML& rhs = other.cast<const RPPXML&>();
-                
-                // Compare name directly
-                if (self.name != rhs.name) {
-                    return false;
-                }
-                
-                // Compare params using Python's comparison
-                py::object self_params = py::cast(self.params);
-                py::object rhs_params = py::cast(rhs.params);
-                if (!self_params.equal(rhs_params)) {
-                    return false;
-                }
-                
-                // Compare children using Python's comparison
-                py::object self_children = py::cast(self.children);
-                py::object rhs_children = py::cast(rhs.children);
-                if (!self_children.equal(rhs_children)) {
-                    return false;
-                }
-                
-                return true;
-            } catch (const py::error_already_set&) {
-                return false;
-            } catch (const std::exception&) {
                 return false;
             }
         })
