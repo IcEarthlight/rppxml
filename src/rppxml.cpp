@@ -24,7 +24,7 @@ std::vector<py::object> parse_line(const char *line)
         if (!*p) break;
         
         // handle raw string starting with |
-        if (*p == '|') {
+        if (*p == '|' && tokens.empty()) {  // only treat | as raw string marker at start of line
             p++; // skip pipe
             tokens.push_back(py::cast(std::string(p))); // take rest of line as string
             break; // nothing more to parse after raw string
@@ -137,7 +137,7 @@ bool needs_quotes(const std::string &str)
     } catch (...) { }
 
     for (char c : str)
-        if (isspace(c) || c == '"' || c == '\'' ||
+        if (isspace(c) || c == '"' || c == '\'' || c == '`' ||
             c == '\\' || !isprint(c))
             return true;
     
