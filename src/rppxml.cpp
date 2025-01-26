@@ -123,37 +123,99 @@ py::object parse_context(ProjectStateContext *ctx)
     return py::cast(result);
 }
 
-// helper function to check if a string needs quotes to avoid ambiguity
-bool needs_quotes(const std::string &str)
-{
-    if (str.empty()) return true; // empty strings ("") needs quotes
+// quote types enum (as uint8_t)
+enum QuoteType : uint8_t {
+    QUOTE_NONE = 0,         // no quotes needed
+    QUOTE_DOUBLE = 1,       // use double quotes
+    QUOTE_SINGLE = 2,       // use single quotes
+    QUOTE_BACKTICK = 3,     // use backticks
+    QUOTE_BACKTICK_MOD = 4, // use backticks with ` -> ' replacement
+    QUOTE_RAW = 5           // use raw string format (|)
+};
 
+// helper function to determine what type of quoting is needed
+QuoteType needs_quotes(const std::string &str, bool is_name = false)
+{
+    // empty strings always need quotes
+    if (str.empty()) return QUOTE_DOUBLE;
+
+    // check if string looks like a number
     try {
         size_t pos = 0;
         std::stod(str, &pos);
-        if (pos == str.size()) // ensure the whole string is parsed ("123abc")
-            return true; // an integer/float number needs quotes
-
+        if (pos == str.size())
+            return QUOTE_DOUBLE;  // numeric strings need quotes
     } catch (...) { }
 
-    for (char c : str)
-        if (isspace(c) || c == '"' || c == '\'' || c == '`' ||
-            c == '\\' || !isprint(c))
-            return true;
-    
-    return false;
+    // check for special characters that require quoting
+    bool needs_quoting = false;
+    bool has_double = false;
+    bool has_single = false;
+    bool has_backtick = false;
+
+    for (char c : str) {
+        if (isspace(c) || !isprint(c)) {
+            needs_quoting = true;
+        }
+        if (c == '"') has_double = true;
+        if (c == '\'') has_single = true;
+        if (c == '`') has_backtick = true;
+    }
+
+    if (!needs_quoting && !has_double && !has_single && !has_backtick) {
+        return QUOTE_NONE;  // no special characters, no quotes needed
+    }
+
+    // if we're in a NAME block and have all types of quotes
+    if (is_name && has_double && has_single && has_backtick) {
+        return QUOTE_RAW;
+    }
+
+    // if we have all types of quotes
+    if (has_double && has_single && has_backtick) {
+        return QUOTE_BACKTICK_MOD;
+    }
+
+    // prefer double quotes if possible
+    if (!has_double) return QUOTE_DOUBLE;
+
+    // if we have double quotes but no single quotes
+    if (!has_single) return QUOTE_SINGLE;
+
+    // if we have both double and single quotes but no backticks
+    return QUOTE_BACKTICK;
 }
 
 // helper function to convert py::object to valid non-ambiguous string
-std::string stringify_pyobj(const py::object &obj)
+std::string stringify_pyobj(const py::object &obj, bool is_name = false)
 {
     if (py::isinstance<py::str>(obj)) {
         std::string str = py::str(obj);
-        // add quotes if string is ambiguous
-        if (needs_quotes(str)) {
-            str = "\"" + str + "\"";
+        QuoteType quote_type = needs_quotes(str, is_name);
+        
+        switch (quote_type) {
+            case QUOTE_NONE:
+                return str;
+            case QUOTE_DOUBLE:
+                return "\"" + str + "\"";
+            case QUOTE_SINGLE:
+                return "'" + str + "'";
+            case QUOTE_BACKTICK:
+                return "`" + str + "`";
+            case QUOTE_BACKTICK_MOD: {
+                std::string modified = str;
+                size_t pos = 0;
+                while ((pos = modified.find('`', pos)) != std::string::npos) {
+                    modified.replace(pos, 1, "'");
+                    pos++;
+                }
+                return "`" + modified + "`";
+            }
+            case QUOTE_RAW:
+                return "|" + str;
+            default:
+                return "\"" + str + "\"";  // fallback to double quotes
         }
-        return str;
     }
     
     // handle floating point numbers
@@ -189,7 +251,7 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
     std::string line = "<" + obj.name;
     for (const py::object &param : obj.params) {
         line += " ";
-        line += stringify_pyobj(param);
+        line += stringify_pyobj(param, false);
     }
     ctx->AddLine("%s", line.c_str());
     
@@ -205,7 +267,7 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
             std::string line;
             for (const py::object &param : params) {
                 if (!line.empty()) line += " ";
-                line += stringify_pyobj(param);
+                line += stringify_pyobj(param, obj.name == "NAME");
             }
             ctx->AddLine("%s", line.c_str());
         }
@@ -225,7 +287,7 @@ std::string write_context_to_string(const RPPXML &obj, int indent = 0)
     result += "<" + obj.name;
     for (const py::object &param : obj.params) {
         result += " ";
-        result += stringify_pyobj(param);
+        result += stringify_pyobj(param, false);
     }
     result += "\n";
     
@@ -242,7 +304,7 @@ std::string write_context_to_string(const RPPXML &obj, int indent = 0)
             bool first = true;
             for (const py::object &param : params) {
                 if (!first) result += " ";
-                result += stringify_pyobj(param);
+                result += stringify_pyobj(param, obj.name == "NAME");
                 first = false;
             }
             result += "\n";
