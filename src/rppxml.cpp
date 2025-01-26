@@ -23,14 +23,21 @@ std::vector<py::object> parse_line(const char *line)
         while (*p && isspace(*p)) p++;
         if (!*p) break;
         
-        // handle quoted string
-        if (*p == '"') {
-            p++; // skip opening quote
+        // handle raw string starting with |
+        if (*p == '|') {
+            p++; // skip pipe
+            tokens.push_back(py::cast(std::string(p))); // take rest of line as string
+            break; // nothing more to parse after raw string
+        }
+        
+        // handle quoted strings (", ' or `)
+        if (*p == '"' || *p == '\'' || *p == '`') {
+            char quote = *p++;  // remember and skip the opening quote
             token.clear();
-            while (*p && *p != '"') {
+            while (*p && *p != quote) {
                 token += *p++;
             }
-            if (*p == '"') p++; // skip closing quote
+            if (*p == quote) p++; // skip closing quote
             tokens.push_back(py::cast(token));
             continue;
         }
