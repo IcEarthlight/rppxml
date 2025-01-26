@@ -1,6 +1,7 @@
 #include "rppxml.hpp"
 #include <WDL/projectcontext.h>
 #include <WDL/heapbuf.h>
+#include <WDL/fastqueue.h>
 #include <sstream>
 #include <cstring>  // for memcpy
 
@@ -184,6 +185,47 @@ void write_context(const RPPXML &obj, ProjectStateContext *ctx)
     ctx->AddLine(">");
 }
 
+// convert RPPXML to string using same logic as write_context
+std::string write_context_to_string(const RPPXML &obj, int indent = 0)
+{
+    std::string result;
+    
+    // write block header with name and params
+    result.append(indent, ' ');  // add indentation
+    result += "<" + obj.name;
+    for (const py::object &param : obj.params) {
+        result += " ";
+        result += stringify_pyobj(param);
+    }
+    result += "\n";
+    
+    // write children with increased indentation
+    for (const py::object &child : obj.children) {
+        try {
+            // try to cast to RPPXML
+            RPPXML block = child.cast<RPPXML>();
+            result += write_context_to_string(block, indent + 2);
+        } catch (const py::cast_error&) {
+            // not a block, must be a parameter list
+            std::vector<py::object> params = child.cast<std::vector<py::object>>();
+            result.append(indent + 2, ' ');  // add indentation
+            bool first = true;
+            for (const py::object &param : params) {
+                if (!first) result += " ";
+                result += stringify_pyobj(param);
+                first = false;
+            }
+            result += "\n";
+        }
+    }
+    
+    // write block end
+    result.append(indent, ' ');  // add indentation
+    result += ">\n";
+    
+    return result;
+}
+
 } // anonymous namespace
 
 py::object loads(const std::string &rpp_str)
@@ -223,21 +265,7 @@ py::object load(const std::string &filename)
 
 std::string dumps(const py::object &obj)
 {
-    WDL_HeapBuf hb;
-    std::unique_ptr<ProjectStateContext> ctx(ProjectCreateMemCtx_Write(&hb));
-    if (!ctx) {
-        throw std::runtime_error("Failed to create context for writing");
-    }
-    
-    write_context(obj.cast<RPPXML>(), ctx.get());
-    delete ctx.release();  // flush the context
-    
-    const char *data = (const char *)hb.Get();
-    size_t len = hb.GetSize();
-    // find actual string length (stop at first null)
-    while (len > 0 && data[len-1] == '\0') len--;
-    
-    return std::string(data, len);
+    return write_context_to_string(obj.cast<RPPXML>());
 }
 
 void dump(const py::object &obj, const std::string &filename)
