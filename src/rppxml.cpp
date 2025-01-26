@@ -130,8 +130,8 @@ bool needs_quotes(const std::string &str)
     } catch (...) { }
 
     for (char c : str)
-        if (isspace(c) || c == '"' || c == '\'' || c == '>' || c == '<' || 
-            c == '\\' || c == '/' || !isprint(c))
+        if (isspace(c) || c == '"' || c == '\'' ||
+            c == '\\' || !isprint(c))
             return true;
     
     return false;
@@ -146,6 +146,29 @@ std::string stringify_pyobj(const py::object &obj)
         if (needs_quotes(str)) {
             str = "\"" + str + "\"";
         }
+        return str;
+    }
+    
+    // handle floating point numbers
+    if (py::isinstance<py::float_>(obj)) {
+        double val = obj.cast<double>();
+        std::ostringstream ss;
+        ss.precision(10);  // use enough precision to avoid loss
+        ss.setf(std::ios::fixed, std::ios::floatfield);  // use fixed notation
+        ss << val;
+        std::string str = ss.str();
+        
+        // remove trailing zeros after decimal point, but keep one if it's a whole number
+        size_t decimal_pos = str.find('.');
+        if (decimal_pos != std::string::npos) {
+            size_t last_non_zero = str.find_last_not_of('0');
+            if (last_non_zero != std::string::npos && last_non_zero > decimal_pos) {
+                str.erase(last_non_zero + 1);
+            } else {
+                str.erase(decimal_pos + 2);  // keep one zero after decimal point
+            }
+        }
+        
         return str;
     }
 
