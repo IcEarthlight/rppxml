@@ -6,7 +6,7 @@ A Python library for parsing and writing REAPER project files (RPP) using WDL's 
 
 ### Prerequisites
 - CMake 3.14 or higher
-- Python 3.6 or higher
+- Python 3.10 or higher
 - A C++ compiler supporting C++11
 
 ### Building

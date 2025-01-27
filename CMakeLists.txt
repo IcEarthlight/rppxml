@@ -1,5 +1,4 @@
-cmake_minimum_required(VERSION 3.14)
-cmake_policy(SET CMP0177 NEW)
+cmake_minimum_required(VERSION 3.11)
 project(rppxml)
 
 # set C++ standard
@@ -37,7 +36,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(wdl pybind11)
 
 # find required packages
-find_package(Python COMPONENTS Interpreter Development REQUIRED)
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 
 # WDL include directories
 set(WDL_INCLUDE_DIRS
@@ -134,5 +133,5 @@ if(BUILD_TEST_PARSER)
 endif()
 
 install(TARGETS rppxml 
-    LIBRARY DESTINATION ${Python_SITEARCH}
+    LIBRARY DESTINATION ${Python3_SITEARCH}
 )
