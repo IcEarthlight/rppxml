@@ -142,7 +142,7 @@ QuoteType needs_quotes(const std::string &str, bool is_name = false)
     // check if string looks like a number
     try {
         size_t pos = 0;
-        std::stod(str, &pos);
+        (void)std::stod(str, &pos); // explicitly mark unused value
         if (pos == str.size())
             return QUOTE_DOUBLE;  // numeric strings need quotes
     } catch (...) { }
@@ -376,7 +376,12 @@ PYBIND11_MODULE(rppxml, m)
     
     py::class_<RPPXML>(m, "RPPXML")
         .def(py::init<>())
-        .def(py::init<const std::string &>())
+        .def(py::init<const std::string&,
+                     const std::vector<py::object>&,
+                     const std::vector<py::object>&>(),
+             py::arg("name"),
+             py::arg("params") = std::vector<py::object>(),
+             py::arg("children") = std::vector<py::object>())
         .def_readwrite("name", &RPPXML::name)
         .def_readwrite("params", &RPPXML::params)
         .def_readwrite("children", &RPPXML::children)

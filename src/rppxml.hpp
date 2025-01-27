@@ -13,7 +13,10 @@ namespace rppxml {
 class RPPXML {
 public:
     RPPXML() = default;
-    RPPXML(const std::string& name) : name(name) { }
+    RPPXML(const std::string& name, 
+           const std::vector<py::object>& params = std::vector<py::object>(),
+           const std::vector<py::object>& children = std::vector<py::object>())
+        : name(name), params(params), children(children) { }
 
     std::string name;
     std::vector<py::object> params;
