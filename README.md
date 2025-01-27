@@ -19,7 +19,7 @@ pip install rppxml
 ## Requirements
 
 - Python 3.10 or later
-- C++ compiler with C++11 support
+- C++ compiler with C++14 support
 
 ## Development Setup
 

@@ -41,9 +41,9 @@ extra_link_args = []
 
 # platform specific settings
 if is_windows:
-    extra_compile_args.extend(["/std:c++11", "/EHsc"])
+    extra_compile_args.extend(["/std:c++14", "/EHsc"])
 else:
-    extra_compile_args.extend(["-std=c++11", "-fvisibility=hidden"])
+    extra_compile_args.extend(["-std=c++14", "-fvisibility=hidden"])
     if is_macos:
         extra_compile_args.extend(["-mmacosx-version-min=10.14"])
         extra_link_args.extend(["-mmacosx-version-min=10.14"])
