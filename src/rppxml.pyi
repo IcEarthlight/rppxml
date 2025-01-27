@@ -5,7 +5,7 @@ from typing import List, Any, overload, TypeAlias
 
 RPPValue: TypeAlias = str | int | float
 RPPParams: TypeAlias = List[RPPValue]
-RPPChild: TypeAlias = RPPXML | List[RPPValue]
+RPPChild: TypeAlias = RPPXML | RPPParams
 
 class RPPXML:
     """RPP XML parser using WDL implementation"""
@@ -22,18 +22,18 @@ class RPPXML:
     def __copy__(self) -> RPPXML: ...
     def __deepcopy__(self, memo: Any) -> RPPXML: ...
 
-def loads(rpp_str: str) -> RPPXML | List[RPPXML]:
+def loads(rpp_str: str) -> RPPChild | List[RPPChild]:
     """Parse RPP from string"""
     ...
 
-def load(filename: PathLike) -> RPPXML | List[RPPXML]:
+def load(filename: PathLike) -> RPPChild | List[RPPChild]:
     """Parse RPP from file"""
     ...
 
-def dumps(obj: RPPXML) -> str:
+def dumps(obj: RPPChild | List[RPPChild]) -> str:
     """Convert to RPP string"""
     ...
 
-def dump(obj: RPPXML, filename: PathLike) -> None:
+def dump(obj: RPPChild | List[RPPChild], filename: PathLike) -> None:
     """Write to RPP file"""
     ... 

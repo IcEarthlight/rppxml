@@ -107,16 +107,21 @@ py::object parse_context(ProjectStateContext *ctx)
                 }
             }
         }
-        else if (!stack.empty()) {
-            // content line within a block
+        else {
+            // content line
             std::vector<py::object> tokens = parse_line(line);
             if (!tokens.empty()) {
-                stack.back()->children.push_back(py::cast(tokens));
+                if (stack.empty()) {
+                    // top-level content
+                    result.push_back(py::cast(tokens));
+                } else {
+                    // content within a block
+                    stack.back()->children.push_back(py::cast(tokens));
+                }
             }
         }
     }
     
-    // return single object if only one, otherwise list
     if (result.size() == 1) {
         return result[0];
     }
@@ -244,41 +249,48 @@ std::string stringify_pyobj(const py::object &obj, bool is_name = false)
     return py::str(obj);
 }
 
-// convert RPPXML to ProjectStateContext
-void write_context(const RPPXML &obj, ProjectStateContext *ctx)
+// convert parameter list to string
+std::string stringify_params(const std::vector<py::object> &params, bool is_name, int indent)
 {
-    // write block header with name and params
-    std::string line = "<" + obj.name;
-    for (const py::object &param : obj.params) {
-        line += " ";
-        line += stringify_pyobj(param, false);
+    std::string result;
+    result.append(indent, ' ');  // add indentation
+    bool first = true;
+    for (const py::object &param : params) {
+        if (!first) result += " ";
+        result += stringify_pyobj(param, is_name);
+        first = false;
     }
-    ctx->AddLine("%s", line.c_str());
-    
-    // write children
-    for (const py::object &child : obj.children) {
-        try {
-            // try to cast to RPPXML
-            RPPXML block = child.cast<RPPXML>();
-            write_context(block, ctx);
-        } catch (const py::cast_error&) {
-            // not a block, must be a parameter list
-            std::vector<py::object> params = child.cast<std::vector<py::object>>();
-            std::string line;
-            for (const py::object &param : params) {
-                if (!line.empty()) line += " ";
-                line += stringify_pyobj(param, obj.name == "NAME");
-            }
-            ctx->AddLine("%s", line.c_str());
+    result += "\n";
+    return result;
+}
+
+// forward declarations
+std::string stringify_params(const std::vector<py::object> &params, bool is_name = false, int indent = 0);
+std::string stringify_children(const std::vector<py::object> &items, bool is_name = false, int indent = 0);
+std::string stringify_rppxml(const RPPXML &obj, int indent = 0);
+void write_rpp_context(const RPPXML &obj, ProjectStateContext *ctx);
+void write_params(const std::vector<py::object> &params, bool is_name, ProjectStateContext *ctx);
+void write_children(const std::vector<py::object> &items, bool is_name, ProjectStateContext *ctx);
+
+// convert List[RPPChild] to string
+std::string stringify_children(const std::vector<py::object> &items, bool is_name, int indent)
+{
+    std::string result;
+    for (const py::object &item : items) {
+        if (py::isinstance<RPPXML>(item)) {
+            result += stringify_rppxml(item.cast<RPPXML>(), indent);
+        } else if (py::isinstance<py::list>(item)) {
+            result += stringify_params(
+                item.cast<std::vector<py::object>>(),
+                is_name, indent
+            );
         }
     }
-    
-    // write block end
-    ctx->AddLine(">");
+    return result;
 }
 
 // convert RPPXML to string using same logic as write_context
-std::string write_context_to_string(const RPPXML &obj, int indent = 0)
+std::string stringify_rppxml(const RPPXML &obj, int indent)
 {
     std::string result;
     
@@ -292,24 +304,7 @@ std::string write_context_to_string(const RPPXML &obj, int indent = 0)
     result += "\n";
     
     // write children with increased indentation
-    for (const py::object &child : obj.children) {
-        try {
-            // try to cast to RPPXML
-            RPPXML block = child.cast<RPPXML>();
-            result += write_context_to_string(block, indent + 2);
-        } catch (const py::cast_error&) {
-            // not a block, must be a parameter list
-            std::vector<py::object> params = child.cast<std::vector<py::object>>();
-            result.append(indent + 2, ' ');  // add indentation
-            bool first = true;
-            for (const py::object &param : params) {
-                if (!first) result += " ";
-                result += stringify_pyobj(param, obj.name == "NAME");
-                first = false;
-            }
-            result += "\n";
-        }
-    }
+    result += stringify_children(obj.children, obj.name == "NAME", indent + 2);
     
     // write block end
     result.append(indent, ' ');  // add indentation
@@ -318,13 +313,54 @@ std::string write_context_to_string(const RPPXML &obj, int indent = 0)
     return result;
 }
 
+// convert parameter list to ProjectStateContext
+void write_params(const std::vector<py::object> &params, bool is_name, ProjectStateContext *ctx)
+{
+    std::string line;
+    for (const py::object &param : params) {
+        if (!line.empty()) line += " ";
+        line += stringify_pyobj(param, is_name);
+    }
+    ctx->AddLine("%s", line.c_str());
+}
+
+// convert List[RPPChild] to ProjectStateContext
+void write_children(const std::vector<py::object> &items, bool is_name, ProjectStateContext *ctx)
+{
+    for (const py::object &item : items) {
+        if (py::isinstance<RPPXML>(item)) {
+            write_rpp_context(item.cast<RPPXML>(), ctx);
+        } else if (py::isinstance<py::list>(item)) {
+            write_params(item.cast<std::vector<py::object>>(), is_name, ctx);
+        }
+    }
+}
+
+// convert RPPXML to ProjectStateContext
+void write_rpp_context(const RPPXML &obj, ProjectStateContext *ctx)
+{
+    // write block header with name and params
+    std::string line = "<" + obj.name;
+    for (const py::object &param : obj.params) {
+        line += " ";
+        line += stringify_pyobj(param, false);
+    }
+    ctx->AddLine("%s", line.c_str());
+    
+    // write children
+    write_children(obj.children, obj.name == "NAME", ctx);
+    
+    // write block end
+    ctx->AddLine(">");
+}
+
 } // anonymous namespace
 
 py::object loads(const std::string &rpp_str)
 {
-    // check if input looks like RPP content
-    if (rpp_str.empty() || rpp_str[0] != '<') {
-        throw std::runtime_error("Invalid RPP content: must start with '<'");
+    // check if input is empty
+    if (rpp_str.empty()) {
+        throw std::runtime_error("Empty RPP content");
     }
 
     WDL_HeapBuf hb;
@@ -357,7 +393,13 @@ py::object load(const std::string &filename)
 
 std::string dumps(const py::object &obj)
 {
-    return write_context_to_string(obj.cast<RPPXML>());
+    if (py::isinstance<py::list>(obj)) {
+        return stringify_children(obj.cast<std::vector<py::object>>());
+    } else if (py::isinstance<RPPXML>(obj)) {
+        return stringify_rppxml(obj.cast<RPPXML>());
+    } else {
+        throw std::runtime_error("Invalid object type for dumps");
+    }
 }
 
 void dump(const py::object &obj, const std::string &filename)
@@ -367,7 +409,13 @@ void dump(const py::object &obj, const std::string &filename)
         throw std::runtime_error("Failed to create file: " + filename);
     }
     
-    write_context(obj.cast<RPPXML>(), ctx.get());
+    if (py::isinstance<py::list>(obj)) {
+        write_children(obj.cast<std::vector<py::object>>(), false, ctx.get());
+    } else if (py::isinstance<RPPXML>(obj)) {
+        write_rpp_context(obj.cast<RPPXML>(), ctx.get());
+    } else {
+        throw std::runtime_error("Invalid object type for dump");
+    }
 }
 
 PYBIND11_MODULE(rppxml, m)
@@ -441,8 +489,10 @@ PYBIND11_MODULE(rppxml, m)
         .def("__deepcopy__", [](const RPPXML &self, py::dict) {
             RPPXML copy;
             copy.name = self.name;
-            copy.params = py::cast<std::vector<py::object>>(py::module::import("copy").attr("deepcopy")(self.params));
-            copy.children = py::cast<std::vector<py::object>>(py::module::import("copy").attr("deepcopy")(self.children));
+            copy.params = py::cast<std::vector<py::object>>(
+                py::module::import("copy").attr("deepcopy")(self.params));
+            copy.children = py::cast<std::vector<py::object>>(
+                py::module::import("copy").attr("deepcopy")(self.children));
             return copy;
         });
     
