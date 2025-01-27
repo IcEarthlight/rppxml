@@ -48,25 +48,25 @@ std::vector<py::object> parse_line(const char *line)
             token += *p++;
         }
         
-        // try to parse as number
+        // try as long long
         try {
             size_t pos;
-            // try as integer
-            int i = std::stoi(token, &pos);
+            long long ll = std::stoll(token, &pos);
             if (pos == token.length()) {
-                tokens.push_back(py::cast(i));
+                tokens.push_back(py::cast(ll));
                 continue;
             }
-            
-            // try as float
+        } catch (...) { }
+
+        // try as float
+        try {
+            size_t pos;
             double d = std::stod(token, &pos);
             if (pos == token.length()) {
                 tokens.push_back(py::cast(d));
                 continue;
             }
-        } catch (...) {
-            // not a number, treat as string
-        }
+        } catch (...) { }
         
         tokens.push_back(py::cast(token));
     }
