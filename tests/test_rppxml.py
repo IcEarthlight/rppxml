@@ -1,11 +1,13 @@
 import os
 import sys
+import glob
 
 # add the build directory to Python path
-build_debug_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "build", "Debug")
-build_release_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "build", "Release")
-sys.path.append(build_debug_dir)
-sys.path.append(build_release_dir)
+build_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "build")
+# find all lib.* directories
+lib_dirs = glob.glob(os.path.join(build_dir, "lib.*"))
+for lib_dir in lib_dirs:
+    sys.path.append(lib_dir)
 
 import textwrap
 import pytest

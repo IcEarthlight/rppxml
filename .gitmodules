@@ -1,0 +1,7 @@
+[submodule "third_party/WDL"]
+	path = third_party/WDL
+	url = https://github.com/justinfrankel/WDL.git
+
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
+	url = https://github.com/pybind/pybind11.git

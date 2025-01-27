@@ -5,9 +5,7 @@
     "python.testing.pytestArgs": [
         "tests"
     ],
-    "python.envFile": "${workspaceFolder}/.env",
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/build/Debug",
-        "${workspaceFolder}/build/Release"
+        "${workspaceFolder}/build/lib.*"
     ]
 } 

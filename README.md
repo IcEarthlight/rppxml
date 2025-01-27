@@ -1,37 +1,97 @@
 # RPPXML
 
-A Python library for parsing and writing REAPER project files (RPP) using WDL's implementation.
+A Python library for parsing and manipulating REAPER project files (RPP) using WDL implementation.
+
+## Features
+
+- Parse RPP files into Python objects
+- Manipulate RPP content programmatically
+- Write modified content back to RPP files
+- Support .rpp, RTrackTemplate, RfxChain, and more
+- Type hints for better IDE support
+
+## Installation
+
+```bash
+pip install rppxml
+```
+
+## Requirements
+
+- Python 3.10 or later
+- C++ compiler with C++11 support
 
 ## Development Setup
 
-### Prerequisites
-- CMake 3.14 or higher
-- Python 3.10 or higher
-- A C++ compiler supporting C++11
-
-### Building
+1. Clone the repository with submodules:
 ```bash
-mkdir build
-cd build
-cmake ..
-cmake --build .
+git clone --recursive https://github.com/IcEarthlight/rppxml.git
+cd rppxml
 ```
 
-### VSCode Setup
-1. Copy `.vscode/project-settings.json` contents to `.vscode/settings.json`
-2. Install the Python extension for VSCode
-3. Install pytest:
-   ```bash
-   pip install pytest
-   ```
-
-### Running Tests
-Tests can be run directly from VSCode:
-1. Open the Testing view (flask icon in the sidebar)
-2. Click the play button to run all tests
-3. Or click individual play buttons next to specific tests
-
-Alternatively, you can run tests from the command line:
+2. Install development dependencies:
 ```bash
-pytest tests -v
+pip install -r requirements.txt
 ```
+
+## Usage
+
+```python
+import rppxml
+from rppxml import RPPXML
+
+# parse from file
+project: RPPXML = rppxml.load("project.rpp")
+
+# parse from string
+content: str = """
+<REAPER_PROJECT 0.1 "6.75/linux-x86_64" 1681651369
+  <TRACK
+    NAME "Track 1"
+  >
+>
+"""
+project: RPPXML = rppxml.loads(content)
+
+# access data
+print(project.params)  # [0.1, "6.75/linux-x86_64", 1681651369]
+track: RPPXML = project.children[0]
+print(track.name)      # "TRACK"
+print(track.params)    # []
+print(track.children)  # [['NAME', 'Track 1']]
+
+# create new content
+track: RPPXML = RPPXML("TRACK", params=[], children=[
+    ["NAME", "New Track"]
+])
+
+# write to string
+rpp_str: str = rppxml.dumps(track)
+
+# write to file
+rppxml.dump(track, "output.rpp")
+```
+
+## Building from Source
+
+Using setuptools:
+```bash
+python setup.py build
+```
+
+## Testing Using VSCode
+
+Copy `.vscode/project-settings.json` to `.vscode/settings.json` and go to the Testing view to run tests.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Make your changes
+4. Run the tests
+5. Submit a pull request
+
+## Acknowledgments
+
+- Uses WDL (Cockos WDL) for RPP parsing
+- Built with pybind11 for Python bindings

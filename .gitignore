@@ -9,9 +9,23 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.pyd
 .Python
-env/
-.env
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # VSCode
 .vscode/*
@@ -26,3 +40,15 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
