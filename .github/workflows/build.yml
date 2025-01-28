@@ -39,7 +39,13 @@ jobs:
       # build wheels
       - name: build wheels
         run: |
-          python setup.py bdist_wheel
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            # Use manylinux2014_x86_64 platform tag for Linux
+            python setup.py bdist_wheel --plat-name manylinux2014_x86_64
+          else
+            # Default build for Windows and macOS
+            python setup.py bdist_wheel
+          fi
 
       # store the built wheels as artifacts
       - name: upload artifacts
