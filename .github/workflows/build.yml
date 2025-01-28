@@ -62,6 +62,14 @@ jobs:
         with:
           path: dist
 
+      # upload to github release
+      - name: upload to github release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*/*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+
       # publish to pypi
       - name: publish to pypi
         env:
@@ -70,11 +78,3 @@ jobs:
         run: |
           pip install twine
           twine upload dist/*/*.whl
-
-      # upload to github release
-      - name: upload to github release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/*/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
