@@ -38,6 +38,7 @@ jobs:
 
       # build wheels
       - name: build wheels
+        shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             # Use manylinux2014_x86_64 platform tag for Linux
