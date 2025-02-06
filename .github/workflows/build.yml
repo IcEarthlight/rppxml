@@ -1,86 +1,123 @@
-name: build
+name: Build and Release
 
-# trigger on push to master and release events
 on:
   push:
-    branches: [ master ]
-  release:
-    types: [ created ]
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build_wheels:
-    name: build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    
-    # build matrix for different platforms
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python: ['cp310', 'cp311', 'cp312', 'cp313']
-      fail-fast: false  # continue with other builds even if one fails
+        os: [windows-latest, macos-latest, ubuntu-latest]
+        python-version: ['cp310', 'cp311', 'cp312', 'cp313']
 
     steps:
-      # checkout the repository
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      # setup python environment
-      - name: set up python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'  # upgraded to 3.11 for cibuildwheel
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
 
-      # install cibuildwheel
-      - name: install cibuildwheel
-        run: python -m pip install cibuildwheel
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install setuptools wheel build
 
-      # build wheels
-      - name: build wheels
-        env:
-          CIBW_BUILD: ${{ matrix.python }}-*
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_ARCHS_LINUX: "x86_64"
-          CIBW_ARCHS_WINDOWS: "AMD64"
-          CIBW_BUILD_VERBOSITY: 3  # added for verbose output
-        run: python -m cibuildwheel --output-dir wheelhouse --debug
+    - name: Install MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
 
-      # store the built wheels as artifacts
-      - name: upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.os }}-${{ matrix.python }}
-          path: wheelhouse/*.whl
-          retention-days: 5
+    - name: Build wheel
+      run: |
+        mkdir -p build
+        cd build
+        cmake -DBUILD_TEST_PARSER=OFF ..
+        cmake --build . --config Release
+        cd ..
+        python -m build --wheel --no-isolation
 
-  # publish to pypi when creating a release
-  publish:
-    needs: [build_wheels]
+    - name: Store wheels
+      uses: actions/upload-artifact@v3
+      with:
+        name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
+        path: dist/*.whl
+
+  build_sdist:
+    name: Build source distribution
     runs-on: ubuntu-latest
-    # only run on release
-    if: github.event_name == 'release'
-    
     steps:
-      # download all the wheels
-      - name: download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      # upload to github release
-      - name: upload to github release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: dist/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      # publish to pypi
-      - name: publish to pypi
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          pip install twine
-          twine upload dist/*.whl
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install build
+
+    - name: Build sdist
+      run: python -m build --sdist
+
+    - name: Store sdist
+      uses: actions/upload-artifact@v3
+      with:
+        name: sdist
+        path: dist/*.tar.gz
+
+  upload_pypi:
+    name: Upload to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        path: dist
+
+    - name: Prepare distribution files
+      run: |
+        mkdir -p dist_final
+        find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec cp {} dist_final/ \;
+
+    - name: Upload to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        packages-dir: dist_final/
+
+  create_release:
+    name: Create GitHub Release
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        path: dist
+
+    - name: Prepare release files
+      run: |
+        mkdir -p release_files
+        find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec cp {} release_files/ \;
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release_files/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true 
