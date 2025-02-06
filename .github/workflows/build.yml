@@ -45,7 +45,7 @@ jobs:
         python -m build --wheel --no-isolation
 
     - name: Store wheels
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
         path: dist/*.whl
@@ -72,7 +72,7 @@ jobs:
       run: python -m build --sdist
 
     - name: Store sdist
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: sdist
         path: dist/*.tar.gz
