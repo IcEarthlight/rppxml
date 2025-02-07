@@ -44,8 +44,12 @@ jobs:
       # change linux tag
       - name: change linux tag
         if: ${{ matrix.os == 'ubuntu-latest' }}
+        # find . -name "*.whl" -exec bash -c 'mv "$0" "${0//linux/manylinux}"' {} \;
         run: |
-          find . -name "*.whl" -exec bash -c 'mv "$0" "${0//linux/manylinux}"' {} \;
+          pip install auditwheel
+          auditwheel repair dist/*.whl
+          rm dist/*.whl
+          mv wheelhouse/*.whl dist/
 
       # store the built wheels as artifacts
       - name: upload artifacts
