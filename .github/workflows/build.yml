@@ -15,7 +15,7 @@ jobs:
     # build matrix for different platforms
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-16.04, windows-latest, macos-latest]
         python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
@@ -43,7 +43,7 @@ jobs:
 
       # change linux tag
       - name: change linux tag
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+        if: ${{ matrix.os == 'ubuntu-16.04' }}
         # find . -name "*.whl" -exec bash -c 'mv "$0" "${0//linux/manylinux}"' {} \;
         run: |
           pip install auditwheel
@@ -61,7 +61,7 @@ jobs:
   # publish to pypi when creating a release
   publish:
     needs: [build_wheels]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
     # only run on release
     if: github.event_name == 'release'
     
