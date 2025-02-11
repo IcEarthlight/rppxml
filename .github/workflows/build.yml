@@ -1,89 +1,102 @@
 name: build
 
-# trigger on push to master and release events
 on:
   push:
     branches: [ master ]
-  release:
-    types: [ created ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   build_wheels:
     name: build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    
-    # build matrix for different platforms
     strategy:
       matrix:
-        os: [ubuntu-16.04, windows-latest, macos-latest]
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
-      # checkout the repository
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # setup python environment
       - name: set up python
         uses: actions/setup-python@v4
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.10'
 
-      # install build dependencies
+      - name: install cibuildwheel
+        run: python -m pip install cibuildwheel
+
+      - name: build wheels
+        run: python -m cibuildwheel --output-dir wheelhouse
+        env:
+          CIBW_SKIP: "*-manylinux_i686"
+          CIBW_BEFORE_BUILD: "pip install cmake ninja"
+          CIBW_BEFORE_BUILD_WINDOWS: "pip install delvewheel"
+          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
+
+      - name: upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  build_sdist:
+    name: build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
       - name: install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build wheel setuptools
+          pip install build
 
-      # build wheels
-      - name: build wheels
-        run: |
-          python setup.py bdist_wheel
+      - name: build sdist
+        run: python -m build --sdist
 
-      # change linux tag
-      - name: change linux tag
-        if: ${{ matrix.os == 'ubuntu-16.04' }}
-        # find . -name "*.whl" -exec bash -c 'mv "$0" "${0//linux/manylinux}"' {} \;
-        run: |
-          pip install auditwheel
-          auditwheel repair dist/*.whl
-          rm dist/*.whl
-          mv wheelhouse/*.whl dist/
-
-      # store the built wheels as artifacts
-      - name: upload artifacts
+      - name: upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.os }}-${{ matrix.python-version }}
-          path: dist/*.whl
+          name: sdist
+          path: dist/*.tar.gz
 
-  # publish to pypi when creating a release
   publish:
-    needs: [build_wheels]
-    runs-on: ubuntu-16.04
-    # only run on release
-    if: github.event_name == 'release'
+    name: publish to PyPI
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     
     steps:
-      # download all the wheels
       - name: download artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
 
-      # publish to pypi
-      - name: publish to pypi
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      - name: prepare distribution files
         run: |
-          pip install twine
-          twine upload dist/*/*.whl
-      # upload to github release
-      - name: upload to github release
+          mkdir -p dist_final
+          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec cp {} dist_final/ \;
+
+      - name: publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: dist_final/
+
+      - name: create github release
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/*/*.whl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          files: dist_final/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true 

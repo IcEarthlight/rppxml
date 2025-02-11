@@ -2,6 +2,12 @@ import os
 import platform
 import subprocess
 from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
+
+class CustomBuildExt(build_ext):
+    def build_extension(self, ext):
+        ext.runtime_library_dirs = []
+        super().build_extension(ext)
 
 def init_submodules():
     """Initialize git submodules if they haven't been initialized yet."""
@@ -51,7 +57,7 @@ else:
 # define the extension module
 ext_modules = [
     Extension(
-        "rppxml",
+        "rppxml.rppxml",
         sources = sources,
         include_dirs = include_dirs,
         extra_compile_args = extra_compile_args,
@@ -75,11 +81,13 @@ setup(
     long_description = long_description,
     long_description_content_type = "text/markdown",
     url = "https://github.com/IcEarthlight/rppxml",
-    ext_modules = ext_modules,
-    python_requires = ">=3.10",
+    packages = ["rppxml"],
     package_data = {
-        "rppxml": ["*.pyi"],  # include type stub files
+        "rppxml": ["rppxml.pyi"],
     },
+    ext_modules = ext_modules,
+    cmdclass = {'build_ext': CustomBuildExt},
+    python_requires = ">=3.10",
     classifiers = [
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
