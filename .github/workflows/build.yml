@@ -86,7 +86,9 @@ jobs:
       - name: prepare distribution files
         run: |
           mkdir -p dist_final
-          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec cp {} dist_final/ \;
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec cp {} dist_final/ \;
+          echo "Files to be uploaded:"
+          ls -la dist_final/
 
       - name: publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -94,11 +96,13 @@ jobs:
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: dist_final/
+          verbose: true
 
       - name: create github release
         uses: softprops/action-gh-release@v1
         with:
           files: dist_final/*
+          token: ${{ secrets.RPPXML_GITHUB_TOKEN }}
           draft: false
-          prerelease: false
+          prerelease: true
           generate_release_notes: true 
