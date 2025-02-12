@@ -31,12 +31,12 @@ jobs:
       - name: build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
-          CIBW_SKIP: "*-manylinux_i686"
+          CIBW_SKIP: "*-manylinux_i686 pp*-macosx_arm64"
           CIBW_BEFORE_BUILD: "pip install cmake ninja"
           CIBW_BEFORE_BUILD_WINDOWS: "pip install delvewheel"
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "delvewheel repair -w {dest_dir} {wheel}"
-          CIBW_ENVIRONMENT_MACOS: "CFLAGS='-Wno-deprecated-declarations' CXXFLAGS='-Wno-deprecated-declarations'"
-          CIBW_ENVIRONMENT_MACOS_PYPY: "LDFLAGS='-Wl,-undefined,dynamic_lookup' CFLAGS='-Wno-deprecated-declarations' CXXFLAGS='-Wno-deprecated-declarations'"
+          CIBW_BEFORE_BUILD_MACOS: "pip install delocate"
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: "delocate-wheel -w {dest_dir} -v {wheel}"
 
       - name: upload wheels
         uses: actions/upload-artifact@v4
