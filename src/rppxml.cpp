@@ -18,6 +18,52 @@ std::vector<py::object> parse_line(const char *line)
     const char *p = line;
     std::string token;
     
+    // check for MIDI event format (e.g. "E 480 90 3f 60" or "e 120 80 3f 00")
+    if ((*p == 'E' || *p == 'e') && (*(p+1) == ' ' || *(p+1) == '\t')) {
+        tokens.push_back(py::cast(std::string(1, *p))); // add 'E' or 'e' as string
+        p++; // skip E/e
+        
+        // skip whitespace
+        while (*p && isspace(*p)) p++;
+        
+        // parse time value
+        token.clear();
+        while (*p && !isspace(*p)) {
+            token += *p++;
+        }
+        try {
+            tokens.push_back(py::cast(std::stoll(token)));
+            
+            // try to parse three hex bytes
+            for (int i = 0; i < 3; i++) {
+                // skip whitespace
+                while (*p && isspace(*p)) p++;
+                
+                if (!*p || !*(p+1)) break; // need at least 2 chars for hex byte
+                
+                char *end;
+                char byte = (char)strtol(p, &end, 16);
+                if (end != p + 2) break; // not valid hex
+                
+                // cast as Python bytes objects
+                tokens.push_back(py::bytes(&byte, 1));
+                
+                p += 2;
+            }
+            
+            // if we didn't get the right number of tokens (E/e + time + 3 bytes = 5)
+            // failed, clear tokens and start over with normal parsing
+            if (tokens.size() != 5) {
+                tokens.clear();
+                p = line;
+            }
+        } catch (...) {
+            // if parsing failed, clear tokens and start over with normal parsing
+            tokens.clear();
+            p = line;
+        }
+    }
+    
     while (*p) {
         // skip whitespace
         while (*p && isspace(*p)) p++;
@@ -192,8 +238,9 @@ QuoteType needs_quotes(const std::string &str, bool is_name = false)
 }
 
 // helper function to convert py::object to valid non-ambiguous string
-std::string stringify_pyobj(const py::object &obj, bool is_name = false)
+std::string stringify_pyobj(const py::object &obj, bool is_name = false, bool float_high_precision = true)
 {
+    // handle strings
     if (py::isinstance<py::str>(obj)) {
         std::string str = py::str(obj);
         QuoteType quote_type = needs_quotes(str, is_name);
@@ -227,7 +274,7 @@ std::string stringify_pyobj(const py::object &obj, bool is_name = false)
     if (py::isinstance<py::float_>(obj)) {
         double val = obj.cast<double>();
         std::ostringstream ss;
-        ss.precision(10);  // use enough precision to avoid loss
+        ss.precision(10 + 4 * float_high_precision);  // use enough precision to avoid loss
         ss.setf(std::ios::fixed, std::ios::floatfield);  // use fixed notation
         ss << val;
         std::string str = ss.str();
@@ -242,22 +289,37 @@ std::string stringify_pyobj(const py::object &obj, bool is_name = false)
                 str.erase(decimal_pos + 2);  // keep one zero after decimal point
             }
         }
-        
         return str;
+    }
+    
+    // handle bytes objects (convert to hex)
+    if (py::isinstance<py::bytes>(obj)) {
+        py::buffer_info info(py::buffer(obj).request());
+        if (info.size > 0) {
+            char hex[3];
+            unsigned char byte = static_cast<unsigned char*>(info.ptr)[0];
+            snprintf(hex, sizeof(hex), "%02x", byte);
+            return std::string(hex);
+        }
+        return "00";  // fallback for empty bytes
     }
 
     return py::str(obj);
 }
 
 // convert parameter list to string
-std::string stringify_params(const std::vector<py::object> &params, bool is_name, int indent)
+std::string stringify_params(const std::vector<py::object> &params, bool is_name, int indent, bool float_high_precision)
 {
     std::string result;
     result.append(indent, ' ');  // add indentation
     bool first = true;
     for (const py::object &param : params) {
         if (!first) result += " ";
-        result += stringify_pyobj(param, is_name);
+        else if (float_high_precision && py::isinstance<py::str>(param) && (
+                param.equal(py::str("PT")) || param.equal(py::str("CFGEDITVIEW")))) {
+            float_high_precision = false;
+        }
+        result += stringify_pyobj(param, is_name, float_high_precision);
         first = false;
     }
     result += "\n";
@@ -265,15 +327,15 @@ std::string stringify_params(const std::vector<py::object> &params, bool is_name
 }
 
 // forward declarations
-std::string stringify_params(const std::vector<py::object> &params, bool is_name = false, int indent = 0);
-std::string stringify_children(const std::vector<py::object> &items, bool is_name = false, int indent = 0);
+std::string stringify_params(const std::vector<py::object> &params, bool is_name = false, int indent = 0, bool float_high_precision = true);
+std::string stringify_children(const std::vector<py::object> &items, bool is_name = false, int indent = 0, bool float_high_precision = true);
 std::string stringify_rppxml(const RPPXML &obj, int indent = 0);
 void write_rpp_context(const RPPXML &obj, ProjectStateContext *ctx);
 void write_params(const std::vector<py::object> &params, bool is_name, ProjectStateContext *ctx);
 void write_children(const std::vector<py::object> &items, bool is_name, ProjectStateContext *ctx);
 
 // convert List[RPPChild] to string
-std::string stringify_children(const std::vector<py::object> &items, bool is_name, int indent)
+std::string stringify_children(const std::vector<py::object> &items, bool is_name, int indent, bool float_high_precision)
 {
     std::string result;
     for (const py::object &item : items) {
@@ -282,7 +344,7 @@ std::string stringify_children(const std::vector<py::object> &items, bool is_nam
         } else if (py::isinstance<py::list>(item)) {
             result += stringify_params(
                 item.cast<std::vector<py::object>>(),
-                is_name, indent
+                is_name, indent, float_high_precision
             );
         }
     }
@@ -299,12 +361,12 @@ std::string stringify_rppxml(const RPPXML &obj, int indent)
     result += "<" + obj.name;
     for (const py::object &param : obj.params) {
         result += " ";
-        result += stringify_pyobj(param, false);
+        result += stringify_pyobj(param, false, true);
     }
     result += "\n";
     
     // write children with increased indentation
-    result += stringify_children(obj.children, obj.name == "NAME", indent + 2);
+    result += stringify_children(obj.children, obj.name == "NAME", indent + 2, obj.name != "JS");
     
     // write block end
     result.append(indent, ' ');  // add indentation
@@ -425,8 +487,8 @@ PYBIND11_MODULE(rppxml, m)
     py::class_<RPPXML>(m, "RPPXML")
         .def(py::init<>())
         .def(py::init<const std::string&,
-                     const std::vector<py::object>&,
-                     const std::vector<py::object>&>(),
+                      const std::vector<py::object>&,
+                      const std::vector<py::object>&>(),
              py::arg("name"),
              py::arg("params") = std::vector<py::object>(),
              py::arg("children") = std::vector<py::object>())
@@ -442,28 +504,28 @@ PYBIND11_MODULE(rppxml, m)
         })
         .def("__eq__", [](const RPPXML &self, py::object other) {
             try {
-                // Try to cast other to RPPXML
+                // try to cast other to RPPXML
                 if (!py::isinstance<RPPXML>(other)) {
-                    py::print("Not a RPPXML instance");
+                    // py::print("Not a RPPXML instance");
                     return false;
                 }
                 
-                // Get the RPPXML reference
+                // get the RPPXML reference
                 const RPPXML& rhs = other.cast<const RPPXML&>();
                 
-                // Compare name directly (string comparison works fine)
+                // compare name directly (string comparison works fine)
                 if (self.name != rhs.name) {
                     return false;
                 }
                 
-                // Compare params using Python's comparison
+                // compare params using Python's comparison
                 py::object self_params = py::cast(self.params);
                 py::object rhs_params = py::cast(rhs.params);
                 if (!self_params.equal(rhs_params)) {
                     return false;
                 }
                 
-                // Compare children using Python's comparison
+                // compare children using Python's comparison
                 py::object self_children = py::cast(self.children);
                 py::object rhs_children = py::cast(rhs.children);
                 if (!self_children.equal(rhs_children)) {
