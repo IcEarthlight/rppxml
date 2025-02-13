@@ -1,6 +1,6 @@
 # RPPXML
 
-A Python library for efficiently parsing and manipulating REAPER xml files (project files, backups and templates).
+A Python library for efficiently parsing and manipulating REAPER project files (.rpp) and related formats like RTrackTemplate and RfxChain.
 
 ## Features
 

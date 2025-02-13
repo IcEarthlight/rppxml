@@ -3,7 +3,7 @@ from __future__ import annotations
 from os import PathLike
 from typing import List, Any, overload, TypeAlias
 
-RPPValue: TypeAlias = str | int | float
+RPPValue: TypeAlias = str | int | float | bytes
 RPPParams: TypeAlias = List[RPPValue]
 RPPChild: TypeAlias = RPPXML | RPPParams
 
