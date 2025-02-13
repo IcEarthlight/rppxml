@@ -185,7 +185,7 @@ enum QuoteType : uint8_t {
 };
 
 // helper function to determine what type of quoting is needed
-QuoteType needs_quotes(const std::string &str, bool is_name = false)
+QuoteType needs_quotes(const std::string &str, bool is_name = false, bool need_quotes = false)
 {
     // empty strings always need quotes
     if (str.empty()) return QUOTE_DOUBLE;
@@ -205,7 +205,7 @@ QuoteType needs_quotes(const std::string &str, bool is_name = false)
     bool has_backtick = false;
 
     for (char c : str) {
-        if (isspace(c) || !isprint(c)) {
+        if (isspace(c)) {
             needs_quoting = true;
         }
         if (c == '"') has_double = true;
@@ -213,17 +213,17 @@ QuoteType needs_quotes(const std::string &str, bool is_name = false)
         if (c == '`') has_backtick = true;
     }
 
-    if (!needs_quoting && !has_double && !has_single && !has_backtick) {
+    if (!needs_quoting && !has_double && !has_single && !has_backtick && !need_quotes) {
         return QUOTE_NONE;  // no special characters, no quotes needed
     }
 
     // if we're in a NAME block and have all types of quotes
-    if (is_name && has_double && has_single && has_backtick) {
+    if (is_name && has_double && has_single && has_backtick && !need_quotes) {
         return QUOTE_RAW;
     }
 
     // if we have all types of quotes
-    if (has_double && has_single && has_backtick) {
+    if (has_double && has_single && has_backtick && !need_quotes) {
         return QUOTE_BACKTICK_MOD;
     }
 
@@ -238,12 +238,12 @@ QuoteType needs_quotes(const std::string &str, bool is_name = false)
 }
 
 // helper function to convert py::object to valid non-ambiguous string
-std::string stringify_pyobj(const py::object &obj, bool is_name = false, bool float_high_precision = true)
+std::string stringify_pyobj(const py::object &obj, bool is_name = false, bool float_high_precision = true, bool need_quotes = false)
 {
     // handle strings
     if (py::isinstance<py::str>(obj)) {
         std::string str = py::str(obj);
-        QuoteType quote_type = needs_quotes(str, is_name);
+        QuoteType quote_type = needs_quotes(str, is_name, need_quotes);
         
         switch (quote_type) {
             case QUOTE_NONE:
@@ -312,15 +312,20 @@ std::string stringify_params(const std::vector<py::object> &params, bool is_name
 {
     std::string result;
     result.append(indent, ' ');  // add indentation
-    bool first = true;
+    bool is_first = true;
+    bool need_quotes = false;
     for (const py::object &param : params) {
-        if (!first) result += " ";
-        else if (float_high_precision && py::isinstance<py::str>(param) && (
-                param.equal(py::str("PT")) || param.equal(py::str("CFGEDITVIEW")))) {
-            float_high_precision = false;
+        if (!is_first) result += " ";
+        else if (float_high_precision && py::isinstance<py::str>(param)) {
+            std::string str = param.cast<std::string>();
+            if (str == "PT" || str == "CFGEDITVIEW")
+                float_high_precision = false;
+            if (str == "RECORD_PATH" || str == "FILE")
+                need_quotes = true;
         }
-        result += stringify_pyobj(param, is_name, float_high_precision);
-        first = false;
+        // don't add quotes to the first param
+        result += stringify_pyobj(param, is_name, float_high_precision, !is_first && need_quotes);
+        is_first = false;
     }
     result += "\n";
     return result;
@@ -359,9 +364,11 @@ std::string stringify_rppxml(const RPPXML &obj, int indent)
     // write block header with name and params
     result.append(indent, ' ');  // add indentation
     result += "<" + obj.name;
+
+    bool is_reaper_project = obj.name == "REAPER_PROJECT";
     for (const py::object &param : obj.params) {
         result += " ";
-        result += stringify_pyobj(param, false, true);
+        result += stringify_pyobj(param, false, true, is_reaper_project);
     }
     result += "\n";
     
