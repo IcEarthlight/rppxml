@@ -74,7 +74,7 @@ if os.path.exists("README.md"):
 
 setup(
     name = "rppxml",
-    version = "0.1.3",
+    version = "0.1.4",
     author = "IcEarthlight",
     author_email = "earthlight2187@hotmail.com",
     description = "A REAPER project file (RPP) parser using WDL implementation",

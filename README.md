@@ -89,7 +89,7 @@ Copy `.vscode/project-settings.json` to `.vscode/settings.json` and go to the Te
 | Implementation | mainly in C++ with Cockos WDL file handling | mainly in Python and uses PLY as a parser framework |
 | Load from a 14.8MB RPP File | 1.48s ± 41.8ms (13x faster) | 19.1s ± 1.44s |
 | Support Format | `.rpp`, `.rpp-bak`, `.RfxChain`, `.RTrackTemplate` | `.rpp`, `.RTrackTemplate` only |
-| Last Update | 2025-02-13 | 2023-04-30 |
+| Last Update | 2025-02-14 | 2023-04-30 |
 
 ## Contributing
 
